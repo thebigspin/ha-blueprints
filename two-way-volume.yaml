@@ -55,7 +55,7 @@ blueprint:
       default: true
       selector:
         boolean: {}
-  source_url: https://github.com/thebigspin/hablueprunts/blob/main/two-way-volume.yaml
+  source_url: https://github.com/thebigspin/ha-blueprints/blob/main/two-way-volume.yaml
 variables:
   scale_factor: !input scale_factor
   scale: "{{ float(scale_factor) }}"
