@@ -7,22 +7,22 @@ blueprint:
   domain: automation
   input:
     virtual_player:
-      name: Virtual Media Player
+      name: Virtual Media Player (control)
       description: Dummy or control-only media player (e.g. Squeezelite).
       selector:
         entity:
           domain: media_player
     real_player:
-      name: Real Media Player / Amplifier
+      name: Real Media Player (volume)
       description: The actual AVR or amp whose volume is controlled.
       selector:
         entity:
           domain: media_player
     scale_factor:
-      name: Volume cap
+      name: Volume cap (cap)
       description: >-
-        Multiplier used during volume transformation to cap the amp volume. 
-        If nonlinear scaling is enabled it’s used in (volume ** 0.5) * scale.
+        Multiplier used during volume transformation to cap the amp volume, 
+        e.g. volume = control*cap.
       default: 0.7
       selector:
         number:
@@ -31,7 +31,7 @@ blueprint:
           step: 0.01
           unit_of_measurement: "×"
     tolerance:
-      name: Tolerance
+      name: Tolerance (tol)
       description: >-
         Minimum volume difference to trigger sync (prevents loops). Recommended 0.01–0.05.
       default: 0.01
@@ -41,10 +41,11 @@ blueprint:
           max: 0.05
           step: 0.001
     use_nonlinear_scaling:
-      name: Use Nonlinear Scaling (Square/Square Root) for more natural volume control 
-      on the amplifier, such that amplifier volue is square root of virtual volume. 
+      name: Use Nonlinear Scaling
       description: >-
-        If true, uses (volume ** 0.5) * scale and its inverse. If false, uses linear scaling.
+        If true, uses (Square/Square Root) for more natural volume control 
+        on the amplifier, such that amplifier volue is square root of virtual volume, 
+        i.e. volume = (control ** 0.5) * cap. If false, uses linear scaling.
       default: true
       selector:
         boolean:
