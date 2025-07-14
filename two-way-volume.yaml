@@ -34,18 +34,6 @@ blueprint:
           max: 1.0
           step: 0.01
           mode: slider
-    tolerance:
-      name: Tolerance (tol)
-      description:
-        Minimum volume difference to trigger sync (prevents loops). Recommended
-        0.005–0.02.
-      default: 0.005
-      selector:
-        number:
-          min: 0.001
-          max: 0.05
-          step: 0.001
-          mode: slider
     use_nonlinear_scaling:
       name: Use Nonlinear Scaling
       description:
@@ -59,18 +47,14 @@ blueprint:
 variables:
   scale_factor: !input scale_factor
   scale: "{{ float(scale_factor) }}"
-  tolerance: !input tolerance
-  tol: "{{ float(tolerance) }}"
   use_nonlinear_scaling: !input use_nonlinear_scaling
   nonlinear: "{{ use_nonlinear_scaling | lower == 'true' }}"
   virtual_player: !input virtual_player
   virt: "{{ state_attr(virtual_player, 'volume_level') }}"
-  virt_scaled: "{{ (virt ** 0.5 * scale) if nonlinear else (virt * scale) }}"
+  virt_scaled: "{{ (virt ** 0.5 * scale) if nonlinear else (virt * scale) | round(2) }}"
   real_player: !input real_player
   real: "{{ state_attr(real_player, 'volume_level') }}"
-  real_scaled: "{{ ((real / scale) ** 2) if nonlinear else (real / scale) }}"
-  threshold_virtual: "{{(virt_scaled - real) | abs}}"
-  threshold_real: "{{(real_scaled - virt) | abs}}"
+  real_scaled: "{{ (((real / scale) ** 2) if nonlinear else (real / scale)) | round(2) }}"
 triggers:
   - trigger: state
     entity_id: !input virtual_player
@@ -81,20 +65,8 @@ triggers:
     attribute: volume_level
     id: real
 condition:
-  - condition: or
-    conditions:
-      - condition: and
-        conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'virtual' }}"
-          - condition: template
-            value_template: "{{ threshold_virtual > tol }}"
-      - condition: and
-        conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'real' }}"
-          - condition: template
-            value_template: "{{ threshold_real > tol }}"
+  - condition: template
+    value_template: "{{ (real_scaled - virt) | abs > 0.005}}"
 action:
   - choose:
       - conditions:
@@ -105,8 +77,7 @@ action:
             target:
               entity_id: !input real_player
             data:
-              volume_level: >-
-                {{ ((virt ** 0.5) * scale if nonlinear else virt * scale) | round(4) }}
+              volume_level: virt_scaled
       - conditions:
           - condition: trigger
             id: real
@@ -115,6 +86,5 @@ action:
             target:
               entity_id: !input virtual_player
             data:
-              volume_level: >-
-                {{ (((real / scale) ** 2) if nonlinear else (real / scale)) | round(4) }}
+              volume_level: real_scaled
 mode: queued
