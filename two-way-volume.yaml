@@ -1,6 +1,6 @@
 blueprint:
   name: Two-Way Volume Sync with Optional Nonlinear Scaling
-  description: >
+  description: >-
     Synchronize volume between a virtual media player (e.g. Squeezelite) and a real amplifier,
     with optional nonlinear scaling (square root/square), volume capping, and loop prevention using state-based
     comparison and tolerance.
@@ -20,9 +20,9 @@ blueprint:
           domain: media_player
     scale_factor:
       name: Volume cap
-      description: >
+      description: >-
         Multiplier used during volume transformation to cap the amp volume. 
-        If nonlinear scaling is enabled it’s used in: (volume ** 0.5) * scale.
+        If nonlinear scaling is enabled it’s used in (volume ** 0.5) * scale.
       default: 0.7
       selector:
         number:
@@ -32,8 +32,8 @@ blueprint:
           unit_of_measurement: "×"
     tolerance:
       name: Tolerance
-      description: >
-        Minimum volume difference to trigger sync (prevents loops). Recommended: 0.01–0.05.
+      description: >-
+        Minimum volume difference to trigger sync (prevents loops). Recommended 0.01–0.05.
       default: 0.01
       selector:
         number:
@@ -43,7 +43,7 @@ blueprint:
     use_nonlinear_scaling:
       name: Use Nonlinear Scaling (Square/Square Root) for more natural volume control 
       on the amplifier, such that amplifier volue is square root of virtual volume. 
-      description: >
+      description: >-
         If true, uses (volume ** 0.5) * scale and its inverse. If false, uses linear scaling.
       default: true
       selector:
