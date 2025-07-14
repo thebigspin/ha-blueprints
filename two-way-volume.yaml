@@ -1,9 +1,9 @@
 blueprint:
   name: Two-Way Volume Sync with Optional Nonlinear Scaling
-  description: >-
-    Synchronize volume between a virtual media player (e.g. Squeezelite) and a real amplifier,
-    with optional nonlinear scaling (square root/square), volume capping, and loop prevention using state-based
-    comparison and tolerance.
+  description:
+    Synchronize volume between a virtual media player (e.g. Squeezelite)
+    and a real amplifier, with optional nonlinear scaling (square root/square), volume
+    capping, and loop prevention using state-based comparison and tolerance.
   domain: automation
   input:
     virtual_player:
@@ -11,97 +11,110 @@ blueprint:
       description: Dummy or control-only media player (e.g. Squeezelite).
       selector:
         entity:
-          domain: media_player
+          domain:
+            - media_player
+          multiple: false
     real_player:
       name: Real Media Player (volume)
       description: The actual AVR or amp whose volume is controlled.
       selector:
         entity:
-          domain: media_player
+          domain:
+            - media_player
+          multiple: false
     scale_factor:
-      name: Volume cap (cap)
-      description: >-
-        Multiplier used during volume transformation to cap the amp volume, 
-        e.g. volume = control*cap.
+      name: Volume cap (scale)
+      description:
+        Multiplier used during volume transformation to cap the amp volume,  e.g.
+        volume = control*scale.
       default: 0.7
       selector:
         number:
           min: 0.1
           max: 1.0
           step: 0.01
-          unit_of_measurement: "×"
+          mode: slider
     tolerance:
       name: Tolerance (tol)
-      description: >-
-        Minimum volume difference to trigger sync (prevents loops). Recommended 0.01–0.05.
-      default: 0.01
+      description:
+        Minimum volume difference to trigger sync (prevents loops). Recommended
+        0.005–0.02.
+      default: 0.005
       selector:
         number:
           min: 0.001
           max: 0.05
           step: 0.001
+          mode: slider
     use_nonlinear_scaling:
       name: Use Nonlinear Scaling
-      description: >-
-        If true, uses (Square/Square Root) for more natural volume control 
-        on the amplifier, such that amplifier volue is square root of virtual volume, 
-        i.e. volume = (control ** 0.5) * cap. If false, uses linear scaling.
+      description:
+        If true, uses (Square/Square Root) for more natural volume control  on
+        the amplifier, such that amplifier volue is square root of virtual volume,  i.e.
+        volume = (control ** 0.5) * cap. If false, uses linear scaling.
       default: true
       selector:
-        boolean:
-
-trigger:
-  - platform: state
+        boolean: {}
+  source_url: https://github.com/thebigspin/hablueprunts/blob/main/two-way-volume.yaml
+variables:
+  scale_factor: !input scale_factor
+  scale: "{{ float(scale_factor) }}"
+  tolerance: !input tolerance
+  tol: "{{ float(tolerance) }}"
+  use_nonlinear_scaling: !input use_nonlinear_scaling
+  nonlinear: "{{ use_nonlinear_scaling | lower == 'true' }}"
+  virtual_player: !input virtual_player
+  virt: "{{ state_attr(virtual_player, 'volume_level') }}"
+  virt_scaled: "{{ (virt ** 0.5 * scale) if nonlinear else (virt * scale) }}"
+  real_player: !input real_player
+  real: "{{ state_attr(real_player, 'volume_level') }}"
+  real_scaled: "{{ ((real / scale) ** 2) if nonlinear else (real / scale) }}"
+  threshold_virtual: "{{(virt_scaled - real) | abs}}"
+  threshold_real: "{{(real_scaled - virt) | abs}}"
+triggers:
+  - trigger: state
     entity_id: !input virtual_player
     attribute: volume_level
     id: virtual
-  - platform: state
+  - trigger: state
     entity_id: !input real_player
     attribute: volume_level
     id: real
-
 condition:
-  - condition: template
-    value_template: >-
-      {% set scale = float(blueprint.inputs.scale_factor) %}
-      {% set tol = float(blueprint.inputs.tolerance) %}
-      {% set nonlinear = blueprint.inputs.use_nonlinear_scaling | lower == 'true' %}
-      {% set virt = state_attr(blueprint.inputs.virtual_player, 'volume_level') | float %}
-      {% set real = state_attr(blueprint.inputs.real_player, 'volume_level') | float %}
-      {% if trigger.id == 'virtual' %}
-        {% set virt_scaled = (virt ** 0.5 * scale) if nonlinear else (virt * scale) %}
-        {{ (virt_scaled - real) | abs > tol }}
-      {% else %}
-        {% set real_scaled = ((real / scale) ** 2) if nonlinear else (real / scale) %}
-        {{ (real_scaled - virt) | abs > tol }}
-      {% endif %}
-
+  - condition: or
+    conditions:
+      - condition: and
+        conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'virtual' }}"
+          - condition: template
+            value_template: "{{ threshold_virtual > tol }}"
+      - condition: and
+        conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'real' }}"
+          - condition: template
+            value_template: "{{ threshold_real > tol }}"
 action:
   - choose:
       - conditions:
           - condition: trigger
             id: virtual
         sequence:
-          - service: media_player.volume_set
+          - action: media_player.volume_set
             target:
               entity_id: !input real_player
             data:
               volume_level: >-
-                {% set scale = float(blueprint.inputs.scale_factor) %}
-                {% set nonlinear = blueprint.inputs.use_nonlinear_scaling | lower == 'true' %}
-                {% set virt = trigger.to_state.attributes.volume_level | float %}
                 {{ ((virt ** 0.5) * scale if nonlinear else virt * scale) | round(4) }}
       - conditions:
           - condition: trigger
             id: real
         sequence:
-          - service: media_player.volume_set
+          - action: media_player.volume_set
             target:
               entity_id: !input virtual_player
             data:
               volume_level: >-
-                {% set scale = float(blueprint.inputs.scale_factor) %}
-                {% set nonlinear = blueprint.inputs.use_nonlinear_scaling | lower == 'true' %}
-                {% set real = trigger.to_state.attributes.volume_level | float %}
                 {{ (((real / scale) ** 2) if nonlinear else (real / scale)) | round(4) }}
 mode: queued
