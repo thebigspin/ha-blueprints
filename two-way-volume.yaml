@@ -51,7 +51,7 @@ variables:
   nonlinear: "{{ use_nonlinear_scaling | lower == 'true' }}"
   virtual_player: !input virtual_player
   virt: "{{ state_attr(virtual_player, 'volume_level') }}"
-  virt_scaled: "{{ (virt ** 0.5 * scale) if nonlinear else (virt * scale) | round(2) }}"
+  virt_scaled: "{{ ((virt ** 0.5 * scale) if nonlinear else (virt * scale)) | round(2) }}"
   real_player: !input real_player
   real: "{{ state_attr(real_player, 'volume_level') }}"
   real_scaled: "{{ (((real / scale) ** 2) if nonlinear else (real / scale)) | round(2) }}"
