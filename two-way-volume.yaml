@@ -23,7 +23,7 @@ blueprint:
             - media_player
           multiple: false
     scale_factor:
-      name: Volume cap (scale)
+      name: Volume upper limit (scale)
       description:
         Multiplier used during volume transformation to cap the amp volume,  e.g.
         volume = control*scale.
@@ -34,27 +34,53 @@ blueprint:
           max: 1.0
           step: 0.01
           mode: slider
-    use_nonlinear_scaling:
-      name: Use Nonlinear Scaling
+    lower_limit:
+      name: Volume lower limit (offset)
       description:
-        If true, uses (Square/Square Root) for more natural volume control  on
-        the amplifier, such that amplifier volue is square root of virtual volume,  i.e.
-        volume = (control ** 0.5) * cap. If false, uses linear scaling.
-      default: true
+        Offset used during volume transformation to offset the minimum volume, 
+        such that volume >= offset. Achieved by volume = (control-cap)/(1-cap)
+      default: 0.4
       selector:
-        boolean: {}
+        number:
+          min: 0.1
+          max: 1.0
+          step: 0.01
+          mode: slider
+    p:
+      name: Scaling factor for nonlinear scaling (p)
+      description: Scales volume for more natural progession, such that
+        amplifier volume is pth root of virtual volume,  i.e.
+        volume = (control ** 1/p) * cap. Default of 1 uses linear scaling.
+      default: 1
+      selector:
+        number:
+          min: 0.1
+          max: 5
+          step: 0.1
+          mode: slider
   source_url: https://github.com/thebigspin/ha-blueprints/blob/main/two-way-volume.yaml
 variables:
   scale_factor: !input scale_factor
+  lower_limit: !input lower_limit
+  p: !input p
+
   scale: "{{ float(scale_factor) }}"
-  use_nonlinear_scaling: !input use_nonlinear_scaling
-  nonlinear: "{{ use_nonlinear_scaling | lower == 'true' }}"
+  limit: "{{ float(lower_limit) }}"
+
   virtual_player: !input virtual_player
   virt: "{{ state_attr(virtual_player, 'volume_level') }}"
-  virt_scaled: "{{ ((virt ** 0.5 * scale) if nonlinear else (virt * scale)) | round(2) }}"
+
+  # Forward transform: virt → real
+  real_from_virt: >
+    {{ (limit + (scale - limit) * (virt ** (1/p))) | round(2) }}
+
   real_player: !input real_player
   real: "{{ state_attr(real_player, 'volume_level') }}"
-  real_scaled: "{{ (((real / scale) ** 2) if nonlinear else (real / scale)) | round(2) }}"
+
+  # Inverse transform: real → virt
+  virt_from_real: >
+    {% set norm = (real - limit) / (scale - limit) %}
+    {{ (norm ** p) | round(2) }}
 triggers:
   - trigger: state
     entity_id: !input virtual_player
