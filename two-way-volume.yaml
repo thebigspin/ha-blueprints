@@ -37,7 +37,7 @@ blueprint:
     lower_limit:
       name: Volume lower limit (offset)
       description:
-        Offset used during volume transformation to offset the minimum volume, 
+        Offset used during volume transformation to offset the minimum volume,
         such that volume >= offset. Achieved by volume = (control-cap)/(1-cap)
       default: 0.4
       selector:
@@ -79,7 +79,7 @@ variables:
 
   # Inverse transform: real → virt
   virt_from_real: >
-    {% set norm = (real - limit) / (scale - limit) %}
+    {% set norm = min((max((real - limit),0) / (scale - limit)),1) %}
     {{ (norm ** p) | round(2) }}
 triggers:
   - trigger: state
@@ -92,25 +92,43 @@ triggers:
     id: real
 condition:
   - condition: template
-    value_template: "{{ (real_scaled - virt) | abs > 0.005}}"
+    value_template: "{{ (real_from_virt - virt) | abs > 0.005}}"
 action:
   - choose:
       - conditions:
+          # This branch handles virtual -> real
           - condition: trigger
             id: virtual
+          - condition: template
+            value_template: >
+              {{ trigger is defined and trigger.to_state is not none and trigger.to_state.context.id != this.context.id }}
+          - condition: template
+            # Only act if real actually differs from what we'd set
+            value_template: >
+              {{ (real - real_from_virt) | abs > 0.005 }}
         sequence:
-          - action: media_player.volume_set
+          - service: media_player.volume_set
             target:
               entity_id: !input real_player
             data:
-              volume_level: "{{ virt_scaled }}"
+              volume_level: "{{ real_from_virt }}"
+
       - conditions:
+          # This branch handles real -> virtual
           - condition: trigger
             id: real
+          - condition: template
+            value_template: >
+              {{ trigger is defined and trigger.to_state is not none and trigger.to_state.context.id != this.context.id }}
+          - condition: template
+            # Only act if virt actually differs from what we'd set
+            value_template: >
+              {{ (virt - virt_from_real) | abs > 0.005 }}
         sequence:
-          - action: media_player.volume_set
+          - service: media_player.volume_set
             target:
               entity_id: !input virtual_player
             data:
-              volume_level: "{{ real_scaled }}"
-mode: queued
+              volume_level: "{{ real_from_virt }}"
+mode: parallel
+max: 4
